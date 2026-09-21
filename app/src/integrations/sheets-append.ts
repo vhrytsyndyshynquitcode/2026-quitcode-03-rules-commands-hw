@@ -16,6 +16,13 @@ interface SheetsResponse {
 const isSheetsResponse = (value: unknown): value is SheetsResponse =>
   isRecord(value) && isString(value.status);
 
+// Рекламна кампанія (utm_campaign) приходить із форми сайту, але поля немає в `Lead`:
+// `core/types.ts` належить платформній команді й змінюється окремим PR. Поки що читаємо
+// його з guard тут, локально; коли поле з'явиться в `Lead` — цей хелпер зникає.
+function readCampaign(lead: Lead): string {
+  return isRecord(lead) && isString(lead.utmCampaign) ? lead.utmCampaign : "";
+}
+
 const sheetsAppend: Integration = {
   name: "sheets-append",
   requiredEnv: ["SHEETS_WEBHOOK_URL", "SHEETS_TOKEN"],
@@ -28,7 +35,8 @@ const sheetsAppend: Integration = {
     if (!token.ok) return token;
 
     const url = `${webhookUrl.value}?token=${token.value}`;
-    const row = [lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source];
+    // Порядок колонок фіксований: нові додаються в кінець, щоб старі рядки лишались читними.
+    const row = [lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source, readCampaign(lead)];
 
     const response = await postJson(url, { values: [row] });
     if (!response.ok) {
